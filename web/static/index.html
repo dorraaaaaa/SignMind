@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASL Translator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #080808; color: #d4d4d4;
+      height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+    }
+    header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 22px; border-bottom: 1px solid #1c1c1c; flex-shrink: 0;
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #1D9E75; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    header h1 { font-size: 15px; font-weight: 600; color: #fff; letter-spacing: .01em; }
+    header span { font-size: 12px; color: #444; }
+    #connStatus { margin-left: auto; font-size: 11px; color: #444; }
+    main { flex: 1; display: grid; grid-template-columns: 1fr 320px; overflow: hidden; }
+    .video-panel { background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .video-panel img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+    .video-placeholder { position: absolute; color: #2a2a2a; font-size: 13px; letter-spacing: .05em; }
+    .info-panel {
+      background: #0f0f0f; border-left: 1px solid #1c1c1c;
+      padding: 18px 16px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto;
+    }
+    .card { background: #161616; border: 1px solid #202020; border-radius: 10px; padding: 14px 16px; }
+    .card-label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #444; margin-bottom: 10px; }
+    #gestureChar { font-size: 56px; font-weight: 700; line-height: 1; color: #1D9E75; margin-bottom: 12px; transition: color .15s; min-height: 60px; }
+    #gestureChar.low  { color: #F59E0B; }
+    #gestureChar.none { color: #2a2a2a; font-size: 28px; }
+    .conf-track { height: 5px; background: #222; border-radius: 3px; overflow: hidden; }
+    #confBar { height: 100%; width: 0%; border-radius: 3px; background: #1D9E75; transition: width .12s ease, background .12s ease; }
+    #confLabel { margin-top: 6px; font-size: 11px; color: #444; }
+    #wordDisplay { font-size: 22px; font-weight: 600; color: #888; font-family: 'Courier New', monospace; letter-spacing: .12em; min-height: 30px; }
+    .cursor { display: inline-block; width: 2px; height: 1em; background: #1D9E75; vertical-align: middle; margin-left: 1px; animation: blink 1s step-end infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+    .sentence-card { flex: 1; display: flex; flex-direction: column; }
+    #sentenceDisplay { flex: 1; font-size: 16px; color: #bbb; line-height: 1.65; word-break: break-word; min-height: 64px; }
+    #sentenceDisplay.empty { color: #333; }
+    .actions { display: flex; gap: 8px; }
+    .btn { flex: 1; padding: 9px 12px; font-size: 13px; border-radius: 8px; border: 1px solid #222; background: #161616; color: #999; cursor: pointer; transition: background .15s,color .15s,border-color .15s; }
+    .btn:hover { background: #1e1e1e; border-color: #2e2e2e; color: #ccc; }
+    .btn.primary { background: #1D9E75; border-color: #1D9E75; color: #fff; font-weight: 500; }
+    .btn.primary:hover { background: #18866a; border-color: #18866a; }
+    .btn:active { transform: scale(.97); }
+    .tip { font-size: 11px; color: #333; text-align: center; line-height: 1.5; padding-top: 2px; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 2px; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="dot"></div>
+  <h1>ASL Translator</h1>
+  <span>real-time sign language</span>
+  <span id="connStatus">connecting…</span>
+</header>
+<main>
+  <div class="video-panel">
+    <span class="video-placeholder">Loading camera feed…</span>
+    <img id="videoFeed" src="/video" alt="Live camera feed" />
+  </div>
+  <div class="info-panel">
+    <div class="card">
+      <div class="card-label">Current gesture</div>
+      <div id="gestureChar" class="none">–</div>
+      <div class="conf-track"><div id="confBar"></div></div>
+      <div id="confLabel">–</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Typing</div>
+      <div id="wordDisplay"><span class="cursor"></span></div>
+    </div>
+    <div class="card sentence-card">
+      <div class="card-label">Sentence</div>
+      <div id="sentenceDisplay" class="empty">Start signing…</div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" onclick="speak()">🔊 Speak</button>
+      <button class="btn"         onclick="clearAll()">✕ Clear</button>
+    </div>
+    <div class="tip">SPACE gesture → commit word<br>DELETE gesture → backspace</div>
+  </div>
+</main>
+<script>
+  const gestureEl  = document.getElementById('gestureChar');
+  const confBar    = document.getElementById('confBar');
+  const confLabel  = document.getElementById('confLabel');
+  const wordEl     = document.getElementById('wordDisplay');
+  const sentenceEl = document.getElementById('sentenceDisplay');
+  const statusEl   = document.getElementById('connStatus');
+
+  const es = new EventSource('/events');
+  es.onopen  = () => { statusEl.textContent = '● live'; statusEl.style.color = '#1D9E75'; };
+  es.onerror = () => { statusEl.textContent = '○ reconnecting…'; statusEl.style.color = '#F59E0B'; };
+  es.onmessage = (e) => {
+    const d = JSON.parse(e.data);
+    if (d.gesture && d.gesture !== 'NOTHING') {
+      gestureEl.textContent = d.gesture;
+      gestureEl.className   = d.confidence >= 0.9 ? '' : 'low';
+      const pct = (d.confidence * 100).toFixed(0);
+      confBar.style.width      = pct + '%';
+      confBar.style.background = d.confidence >= 0.9 ? '#1D9E75' : '#F59E0B';
+      confLabel.textContent    = pct + '% confidence';
+    } else {
+      gestureEl.textContent = '–';
+      gestureEl.className   = 'none';
+      confBar.style.width   = '0%';
+      confLabel.textContent = '–';
+    }
+    wordEl.innerHTML = (d.word || '') + '<span class="cursor"></span>';
+    if (d.sentence) {
+      sentenceEl.textContent = d.sentence;
+      sentenceEl.className   = '';
+    } else {
+      sentenceEl.textContent = 'Start signing…';
+      sentenceEl.className   = 'empty';
+    }
+  };
+
+  function speak()   { fetch('/speak', { method: 'POST' }); }
+  function clearAll() {
+    fetch('/clear', { method: 'POST' });
+    sentenceEl.textContent = 'Start signing…';
+    sentenceEl.className   = 'empty';
+    wordEl.innerHTML       = '<span class="cursor"></span>';
+  }
+</script>
+</body>
+</html>

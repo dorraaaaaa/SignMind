@@ -1,0 +1,25 @@
+model:
+  input_size: 63
+  hidden_layers: [128, 64, 32]
+  dropout_rate: 0.3
+  epochs: 100
+  batch_size: 32
+  learning_rate: 0.001
+  validation_split: 0.2
+
+data:
+  gestures_dir: "data/landmarks"
+  samples_per_batch: 100
+  camera_index: 0
+
+inference:
+  confidence_threshold: 0.80   # relevé à 0.80 → moins de faux positifs
+  sentence_pause_seconds: 2.5
+  smoothing_buffer: 15          # buffer plus grand → plus stable
+
+tts:
+  language: "en"
+
+dashboard:
+  title: "ASL Translator"
+  fps_target: 30

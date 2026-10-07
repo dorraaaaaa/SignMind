@@ -1,0 +1,16 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.vscode/
+.ipynb_checkpoints/
+
+# Gros fichiers 
+data/
+dataset/
+*.h5
+*.pt
+*.pth
+*.onnx
+*.mp4
